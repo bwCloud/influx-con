@@ -1,0 +1,3 @@
+# Add this files into the installation
+include influx_con/config/*.yml
+
