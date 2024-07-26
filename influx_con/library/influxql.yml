@@ -1,0 +1,40 @@
+commands:
+  - description: 'List databases'
+    cmd: 'SHOW DATABASES;'
+  - description: 'List tables'
+    cmd: 'SHOW MEASUREMENTS;'
+  - description: 'List all hosts'
+    cmd: |
+      SHOW TAG VALUES
+      FROM "alive"
+      WITH KEY =~ /host/
+      WHERE "host" !~ /api|idm/;
+  - description: 'Show last values of measurement'
+    cmd: |
+      SELECT *
+      FROM "power_supply"
+      ORDER BY "time" DESC
+      LIMIT 10;
+  - description: 'Delete some measurement data'
+    cmd: |
+      SELECT *
+      FROM "openstack"
+      WHERE "host"='n3636.bwcloud.privat' AND
+      "time" > '2023-04-10T20:00:00Z';
+  - description: 'Aggregate field value in time intervall'
+    cmd: |
+      SELECT sum("value")
+      FROM "ipmi_sensor"
+      WHERE "name" = 'ps2_power_in'
+      GROUP BY time(1m) fill(0);
+  - description: 'List host with failed services'
+    cmd: |
+      SELECT host, sum
+      FROM (
+        SELECT sum("value") AS "sum"
+        FROM "failed_services"
+        WHERE time > now() - 1h
+        GROUP BY time(1m), "host" fill(0)
+      )
+      WHERE sum > 1
+
