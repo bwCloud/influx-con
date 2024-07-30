@@ -1,7 +1,7 @@
 """Utils for the tool."""
 from sys import exit
 from yaml import safe_load
-from typing import List
+from typing import List, Dict
 
 
 def handle_errors(
@@ -57,16 +57,26 @@ def parse_config(path: str) -> List[dict]:
     return config['connection'], config['profiles']
 
 
-def parse_library(path: str) -> List[dict]:
-    """Parse the statements in the library.
+def get_user_profile(
+    profiles: Dict[str, str],
+    target: str
+) -> Dict[str, str]:
+    """Get the user properties.
 
     Args:
-        path: Path to the file.
+        profiles: List of profiles.
+        target: Name of profile.
 
-    Returns: The statements
+    Returns: The settings for the target profile.
+
     """
-    library = read_yaml(path)
-    library = library['commands']
-    for e, lib_cmd in enumerate(library):
-        lib_cmd['id'] = e + 1
-    return library
+    user = profiles.get(target, None)
+    if user is None:
+        err_msg = f"Error: The profile '{target}' is not defined. " \
+                f'Supported is: {list(profiles.keys())}.'
+        handle_errors(
+            err_msg,
+            10
+        )
+
+    return user
