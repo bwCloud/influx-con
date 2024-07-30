@@ -1,17 +1,17 @@
 """CLI application for influx-con."""
-from typing import Dict
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from textwrap import dedent
 from pathlib import Path
 from time import sleep
 
-from influx_con.utils import handle_errors, parse_config, parse_library
+from influx_con.utils import \
+    parse_config, \
+    get_user_profile
 from influx_con.library import \
-    print_library, get_library_command
+    quick_library, \
+    show_library
 from influx_con.test_measurement import \
-    insert_test_measurement, \
-    print_test_measurement, \
-    drop_test_measurement
+    insert_test_measurement
 from influx_con.idbccclient import \
     open_connection, \
     run_select_query, \
@@ -63,6 +63,17 @@ def parse_args() -> Namespace:
             Def. is 'admin'.
         """
     )
+    library_path = Path.home().joinpath('./.local/share/fluxc/library.yml')
+    parser.add_argument(
+        '--library',
+        metavar='PATH',
+        action='store',
+        default=library_path,
+        help=f"""
+            Path to the statement library file.
+            Def. is '{library_path}'.
+        """
+    )
 
     # == Test ==
     # parser_test
@@ -75,17 +86,6 @@ def parse_args() -> Namespace:
     parser_lib = subparser.add_parser(
         'lib',
         help='Show or run statements from the library.'
-    )
-    library_path = Path.home().joinpath('./.local/share/fluxc/library.yml')
-    parser_lib.add_argument(
-        '--library',
-        metavar='PATH',
-        action='store',
-        default=library_path,
-        help=f"""
-            Path to the statement library file.
-            Def. is '{library_path}'.
-        """
     )
     parser_lib.add_argument(
         'id',
@@ -117,31 +117,6 @@ def parse_args() -> Namespace:
     return args
 
 
-def get_user_profile(
-    profiles: Dict[str, str],
-    target: str
-) -> Dict[str, str]:
-    """Get the user properties.
-
-    Args:
-        profiles: List of profiles.
-        target: Name of profile.
-
-    Returns: The settings for the target profile.
-
-    """
-    user = profiles.get(target, None)
-    if user is None:
-        err_msg = f"Error: The profile '{target}' is not defined. " \
-                f'Supported is: {list(profiles.keys())}.'
-        handle_errors(
-            err_msg,
-            10
-        )
-
-    return user
-
-
 def modus_test(args: Namespace):
     """Execute a set of test querys.
 
@@ -150,6 +125,7 @@ def modus_test(args: Namespace):
 
     """
     config_file = args.config
+    library_file = args.library
 
     # Parse config
     cfg_conn, cfg_profiles = parse_config(config_file)
@@ -176,37 +152,26 @@ def modus_test(args: Namespace):
         if e != num_entrie - 1:
             sleep(1)
 
-    # == Read data ==
-    read_user = get_user_profile(
-        cfg_profiles,
-        'reader'
+    quick_library(
+        library_file,
+        config_file,
+        'reader',
+        1
     )
-    # Open read connection to database
-    read_client = open_connection(
-        cfg_conn['host'],
-        cfg_conn['port'],
-        read_user['name'],
-        read_user['pw'],
-        cfg_conn['database'],
-        ssl=cfg_conn['ssl'],
+    quick_library(
+        library_file,
+        config_file,
+        'reader',
+        2
     )
-    print_test_measurement(read_client)
 
     # == Clean up ==
-    admin_user = get_user_profile(
-        cfg_profiles,
-        'admin'
+    quick_library(
+        library_file,
+        config_file,
+        'admin',
+        3
     )
-    # Open admin connection to database
-    admin_client = open_connection(
-        cfg_conn['host'],
-        cfg_conn['port'],
-        admin_user['name'],
-        admin_user['pw'],
-        cfg_conn['database'],
-        ssl=cfg_conn['ssl'],
-    )
-    drop_test_measurement(admin_client)
 
 
 def modus_lib(args: Namespace):
@@ -217,42 +182,22 @@ def modus_lib(args: Namespace):
 
     """
     config_file = args.config
-    profile = args.profile
     library_file = args.library
+    profile = args.profile
     lib_id = args.id
 
-    lib_cmds = parse_library(library_file)
-
-    # Default case
+    # Only print library and exit
     if lib_id is None:
-        print_library(lib_cmds)
+        show_library(library_file)
         return
 
-    # Parse config
-    cfg_conn, cfg_user = parse_config(config_file)
-
-    # Open connection to database
-    user = cfg_user[profile]
-    client = open_connection(
-        cfg_conn['host'],
-        cfg_conn['port'],
-        user['name'],
-        user['pw'],
-        cfg_conn['database'],
-        ssl=cfg_conn['ssl'],
-    )
-
-    cmd = get_library_command(
-        lib_cmds,
+    # Run library command
+    quick_library(
+        library_file,
+        config_file,
+        profile,
         lib_id
     )
-
-    # Run query
-    result = run_select_query(
-        client,
-        cmd
-    )
-    print_measurements(result)
 
 
 def modus_run(args: Namespace):
