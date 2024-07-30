@@ -3,6 +3,10 @@ from influxdb import InfluxDBClient
 from influxdb.resultset import ResultSet
 from typing import List, Union
 
+from influx_con.utils import \
+        parse_config, \
+        get_user_profile
+
 
 def open_connection(
     host: str,
@@ -77,3 +81,46 @@ def print_measurements(
         print(caption)
     for e, point in enumerate(result.get_points(tags=tag_filter)):
         print('  {0:02.0f}  {1}'.format(e, point))
+
+
+def quick_query(
+    config_file: str,
+    profile: str,
+    cmd: str,
+    **kwargs
+):
+    """Connect and run a query.
+
+    Args:
+        config_file: Patht to config file.
+        profile: Profile name.
+        cmd: Command to execute.
+        kwargs: Options supported by other functions.
+
+    """
+    # Parse config
+    cfg_conn, cfg_profiles = parse_config(config_file)
+
+    # Open connection to database
+    user = get_user_profile(
+        cfg_profiles,
+        profile
+    )
+    client = open_connection(
+        cfg_conn['host'],
+        cfg_conn['port'],
+        user['name'],
+        user['pw'],
+        cfg_conn['database'],
+        ssl=cfg_conn['ssl'],
+    )
+
+    # Run query
+    result = run_select_query(
+        client,
+        cmd
+    )
+    print_measurements(
+        result,
+        **kwargs
+    )
